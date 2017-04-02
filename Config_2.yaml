@@ -1,18 +1,18 @@
 #cloud-config
 
-hostname: CoreOS_1
+hostname: CoreOS_2
 coreos:
   etcd2:
     # generate a new token for each unique cluster from https://discovery.etcd.io/new?size=3
     # specify the initial size of your cluster with ?size=X
-    discovery: https://discovery.etcd.io/f878aee2d307ad3731db2dbcf52a4ac6
+    discovery: https://discovery.etcd.io/90f520b2ab2ff7d4d7a00f5d9c0faa6d
     # multi-region and multi-cloud deployments need to use $public_ipv4
-    advertise-client-urls: http://192.168.1.51:2379,http://192.168.1.51:4001
-    initial-advertise-peer-urls: http://192.168.1.51:2380
+    advertise-client-urls: http://192.168.1.12:2379,http://192.168.1.12:4001
+    initial-advertise-peer-urls: http://192.168.1.12:2380
     # listen on both the official ports and the legacy ports
     # legacy ports can be omitted if your application doesn't depend on them
     listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
-    listen-peer-urls: http://192.168.1.51:2380
+    listen-peer-urls: http://192.168.1.12:2380
   units:
     - name: etcd2.service
       command: start
@@ -23,8 +23,7 @@ coreos:
         - name: 50-network-config.conf
           content: |
             [Service]
-            ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config '{ "Network": "10.1.0.0/16" }
+            ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config '{ "Network": "10.1.0.0/16" }'
       command: start
 ssh_authorized_keys:
   - ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAQEA0nFa6bo7HC5qHfXqpyEjKolBkMYQZw/nFvqOGzoUYPdCLgTxrMcValrv0biBwxAjaf2PIvBJTHu6mucw+RHItCN748DpiP3RZKrpObkwl6Ud/ECCWe+w0Hyb7Qrn76n37EfO1S2c20JhfgRPtWMIsyvG4b3j3X4zD9X9+7m18FHeNVaECz5k/64RTHIhDsC2slQh3IrNny1sAsNFn8IyLaNZPHIeN/44FL+GI078sAkd8hqwbuVMyLHvL8e2CL+aT70mKcMsdzhHxrBhVhNRF1Hi2C92jTJ408+1CjRD3Z0rVNw+VtYjGPqiZa3O9J28i4w6MtKuNFNlTqwmQoX55w==
-
