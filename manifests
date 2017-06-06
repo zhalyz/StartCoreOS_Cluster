@@ -1,0 +1,189 @@
+#!/bin/bash
+set -e
+export ETCD_ENDPOINTS=192.168.1.100:2379,192.168.1.101:2379,192.168.1.102:2379
+export SERVICE_IP_RANGE=10.3.0.0/24
+export ADVERTISE_IP=192.168.1.100
+export DNS_SERVICE_IP=10.3.0.10
+export K8S_VER=v1.6.4_coreos.0
+cat > /etc/systemd/system/kubelet.service << EOF
+[Service]
+Environment=KUBELET_IMAGE_TAG=${K8S_VER}
+Environment="RKT_RUN_ARGS=--uuid-file-save=/var/run/kubelet-pod.uuid \
+  --volume var-log,kind=host,source=/var/log \
+  --mount volume=var-log,target=/var/log \
+  --volume dns,kind=host,source=/etc/resolv.conf \
+  --mount volume=dns,target=/etc/resolv.conf"
+ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
+ExecStartPre=/usr/bin/mkdir -p /var/log/containers
+ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
+ExecStart=/usr/lib/coreos/kubelet-wrapper \
+  --api-servers=http://127.0.0.1:8080 \
+  --register-schedulable=false \
+  --cni-conf-dir=/etc/kubernetes/cni/net.d \
+  --network-plugin=${NETWORK_PLUGIN} \
+  --container-runtime=docker \
+  --allow-privileged=true \
+  --pod-manifest-path=/etc/kubernetes/manifests \
+  --hostname-override=${ADVERTISE_IP} \
+  --cluster_dns=${DNS_SERVICE_IP} \
+  --cluster_domain=cluster.local
+ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+mkdir -p /etc/kubernetes/manifests
+cat > /etc/kubernetes/manifests/kube-apiserver.yaml EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  hostNetwork: true
+  containers:
+  - name: kube-apiserver
+    image: quay.io/coreos/hyperkube:${K8S_VER}
+    command:
+    - /hyperkube
+    - apiserver
+    - --bind-address=0.0.0.0
+    - --etcd-servers=${ETCD_ENDPOINTS}
+    - --allow-privileged=true
+    - --service-cluster-ip-range=${SERVICE_IP_RANGE}
+    - --secure-port=443
+    - --advertise-address=${ADVERTISE_IP}
+    - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
+    - --tls-cert-file=/etc/kubernetes/ssl/apiserver.pem
+    - --tls-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
+    - --client-ca-file=/etc/kubernetes/ssl/ca.pem
+    - --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem
+    - --runtime-config=extensions/v1beta1/networkpolicies=true
+    - --anonymous-auth=false
+    livenessProbe:
+      httpGet:
+        host: 127.0.0.1
+        port: 8080
+        path: /healthz
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
+    ports:
+    - containerPort: 443
+      hostPort: 443
+      name: https
+    - containerPort: 8080
+      hostPort: 8080
+      name: local
+    volumeMounts:
+    - mountPath: /etc/kubernetes/ssl
+      name: ssl-certs-kubernetes
+      readOnly: true
+    - mountPath: /etc/ssl/certs
+      name: ssl-certs-host
+      readOnly: true
+  volumes:
+  - hostPath:
+      path: /etc/kubernetes/ssl
+    name: ssl-certs-kubernetes
+  - hostPath:
+      path: /usr/share/ca-certificates
+    name: ssl-certs-host
+EOF
+    cat > /etc/kubernetes/manifests/kube-proxy.yaml EOF
+    apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-proxy
+  namespace: kube-system
+spec:
+  hostNetwork: true
+  containers:
+  - name: kube-proxy
+    image: quay.io/coreos/hyperkube:${K8S_VER}
+    command:
+    - /hyperkube
+    - proxy
+    - --master=http://127.0.0.1:8080
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - mountPath: /etc/ssl/certs
+      name: ssl-certs-host
+      readOnly: true
+  volumes:
+  - hostPath:
+      path: /usr/share/ca-certificates
+    name: ssl-certs-host
+EOF
+cat > /etc/kubernetes/manifests/kube-controller-manager.yaml EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-controller-manager
+  namespace: kube-system
+spec:
+  hostNetwork: true
+  containers:
+  - name: kube-controller-manager
+    image: quay.io/coreos/hyperkube:${K8S_VER}
+    - /hyperkube
+    - controller-manager
+    - --master=http://127.0.0.1:8080
+    - --leader-elect=true
+    - --service-account-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
+    - --root-ca-file=/etc/kubernetes/ssl/ca.pem
+    resources:
+      requests:
+        cpu: 200m
+    livenessProbe:
+      httpGet:
+        host: 127.0.0.1
+        path: /healthz
+        port: 10252
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
+    volumeMounts:
+    - mountPath: /etc/kubernetes/ssl
+      name: ssl-certs-kubernetes
+      readOnly: true
+    - mountPath: /etc/ssl/certs
+      name: ssl-certs-host
+      readOnly: true
+  volumes:
+  - hostPath:
+      path: /etc/kubernetes/ssl
+    name: ssl-certs-kubernetes
+  - hostPath:
+      path: /usr/share/ca-certificates
+    name: ssl-certs-host
+EOF
+cat > /etc/kubernetes/manifests/kube-scheduler.yaml EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-scheduler
+  namespace: kube-system
+spec:
+  hostNetwork: true
+  containers:
+  - name: kube-scheduler
+    image: quay.io/coreos/hyperkube:${K8S_VER}
+    command:
+    - /hyperkube
+    - scheduler
+    - --master=http://127.0.0.1:8080
+    - --leader-elect=true
+    resources:
+      requests:
+        cpu: 100m
+    livenessProbe:
+      httpGet:
+        host: 127.0.0.1
+        path: /healthz
+        port: 10251
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
+EOF
+ECHO "ALL DONE"
