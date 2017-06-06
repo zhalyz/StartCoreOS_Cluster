@@ -35,7 +35,7 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 mkdir -p /etc/kubernetes/manifests
-cat > /etc/kubernetes/manifests/kube-apiserver.yaml EOF
+cat > /etc/kubernetes/manifests/kube-apiserver.yaml << EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -90,8 +90,8 @@ spec:
   - hostPath:
       path: /usr/share/ca-certificates
     name: ssl-certs-host
-EOF
-    cat > /etc/kubernetes/manifests/kube-proxy.yaml EOF
+	EOF
+    cat > /etc/kubernetes/manifests/kube-proxy.yaml << EOF
     apiVersion: v1
 kind: Pod
 metadata:
@@ -117,7 +117,7 @@ spec:
       path: /usr/share/ca-certificates
     name: ssl-certs-host
 EOF
-cat > /etc/kubernetes/manifests/kube-controller-manager.yaml EOF
+cat > /etc/kubernetes/manifests/kube-controller-manager.yaml << EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -159,7 +159,7 @@ spec:
       path: /usr/share/ca-certificates
     name: ssl-certs-host
 EOF
-cat > /etc/kubernetes/manifests/kube-scheduler.yaml EOF
+cat > /etc/kubernetes/manifests/kube-scheduler.yaml << EOF
 apiVersion: v1
 kind: Pod
 metadata:
