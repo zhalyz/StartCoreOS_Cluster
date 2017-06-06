@@ -186,4 +186,4 @@ spec:
       initialDelaySeconds: 15
       timeoutSeconds: 15
 EOF
-ECHO "ALL DONE"
+echo "ALL DONE"
