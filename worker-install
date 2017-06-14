@@ -8,7 +8,7 @@ export ETCD_ENDPOINTS=http://10.30.5.230:2379,http://10.30.5.231:2379,http://10.
 # In HA configurations this should be an external DNS record or loadbalancer in front of the control nodes.
 # However, it is also possible to point directly to a single control node.
 export CONTROLLER_ENDPOINT=http://10.30.5.230:2379
-export ADVERTISE_IP=10.30.5.231
+export ADVERTISE_IP=10.30.5.232
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
 export K8S_VER=v1.5.4_coreos.0
 
